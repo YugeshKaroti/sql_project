@@ -1,0 +1,98 @@
+create database library;
+use library;
+create table tbl_book_authors(book_authors_AuthorID tinyint primary key auto_increment,
+book_authors_BookID tinyint not null,
+book_authors_AuthorName varchar(255),
+foreign key(book_authors_BookID) references tbl_book(book_BookID)
+on delete cascade on update cascade);
+
+create table tbl_publisher(publisher_PublisherName varchar(255) primary key,
+publisher_PublisherAddress varchar(255),
+publisher_PublisherPhone varchar(20));
+
+create table tbl_book(book_BookID tinyint primary key,
+book_title varchar(100),
+book_PublisherName varchar(255),
+foreign key(book_PublisherName) references tbl_publisher(publisher_PublisherName)
+on delete cascade on update cascade);
+
+
+create table tbl_book_copies(book_copies_CopiesID tinyint primary key auto_increment,
+book_copies_BookID tinyint,
+book_copies_BranchID tinyint,
+book_copies_No_Of_Copies tinyint,
+foreign key(book_copies_BookID) references tbl_book(book_BookID)
+on delete cascade on update cascade,
+foreign key(book_copies_BranchID) references tbl_library_branch(library_branch_BranchID)
+on delete cascade on update cascade);
+
+create table tbl_library_branch(library_branch_BranchID tinyint primary key auto_increment,
+library_branch_BranchName varchar(15),
+library_branch_BranchAddress varchar(30));
+
+create table tbl_borrower(borrower_CardNo tinyint primary key,
+borrower_BorrowerName varchar(50),
+borrower_BorrowerAddress varchar(100),
+borrower_BorrowerPhone char(12));
+
+create table tbl_book_loans(book_loans_LoansID tinyint primary key auto_increment,
+book_loans_BookID tinyint,
+foreign key(book_loans_BookID) references tbl_book(book_BookID)
+on delete cascade on update cascade,
+book_loans_BranchID tinyint,
+foreign key(book_loans_BranchID) references tbl_library_branch(library_branch_BranchID)
+on delete cascade on update cascade,
+book_loans_CardNo tinyint,
+foreign key(book_loans_CardNo) references tbl_borrower(borrower_CardNo)
+on delete cascade on update cascade,
+book_loans_DateOut varchar(25),
+book_loans_DueDate varchar(25));
+
+-- 1st Question How many copies of the book titled "The Lost Tribe" are owned by the library branch whose name is "Sharpstown"?
+select b.book_title,l.library_branch_BranchName,sum(c.book_copies_No_Of_Copies) as Copies from tbl_book b
+left join tbl_book_copies c on b.book_BookID = c.book_copies_BookID 
+left join tbl_library_branch l on c.book_copies_BranchID = l.library_branch_BranchID group by b.book_title,l.library_branch_BranchName
+having b.book_title = "The Lost Tribe" and l.library_branch_BranchName = "Sharpstown";
+
+-- 2nd Question How many copies of the book titled "The Lost Tribe" are owned by each library branch?
+select b.book_title,l.library_branch_BranchName,sum(c.book_copies_No_Of_Copies) as copies from tbl_book b
+left join tbl_book_copies c on b.book_BookID = c.book_copies_BookID
+left join tbl_library_branch l on c.book_copies_BranchID = l.library_branch_BranchID
+group by b.book_title,l.library_branch_BranchName having b.book_title = "The Lost Tribe";
+
+-- 3rd Question Retrieve the names of all borrowers who do not have any books checked out.
+select bb.borrower_BorrowerName,count(l.book_loans_CardNo) as Number_Of_Books_Checked_Out
+from tbl_borrower bb
+left join tbl_book_loans l on bb.borrower_cardNo = l.book_loans_CardNo
+group by bb.borrower_BorrowerName having Number_of_books_checked_out = 0;
+
+-- 4th Question For each book that is loaned out from the "Sharpstown" branch and whose DueDate is 2/3/18, 
+-- retrieve the book title, the borrower's name, and the borrower's address. 
+with cte as (select l.library_branch_BranchName,d.book_loans_DueDate,b.book_title,bb.borrower_BorrowerName,bb.borrower_BorrowerAddress from 
+tbl_borrower bb left join tbl_book_loans d on bb.borrower_CardNo = d.book_loans_CardNo
+left join tbl_library_branch l on d.book_loans_BranchID = l.library_branch_BranchID 
+left join tbl_book b on d.book_loans_BookID = b.book_BookID)
+select book_title,borrower_BorrowerName,borrower_BorrowerAddress from cte where library_branch_BranchName = "Sharpstown" 
+and book_loans_DueDate in ("02-03-2018","2/3/18");
+
+-- 5th Question For each library branch, retrieve the branch name and the total number of books loaned out from that branch.
+select b.library_branch_BranchName,count(l.book_loans_CardNo) as number_of_books_loaned_out from tbl_library_branch b
+left join tbl_book_loans l on b.library_branch_BranchID = l.book_loans_BranchID
+group by b.library_branch_BranchName;
+
+-- 6th Question Retrieve the names, addresses, and number of books checked out for all borrowers who have more than five books checked out.
+with cte as (select bb.borrower_BorrowerName,bb.borrower_BorrowerAddress,l.book_loans_CardNo,count(l.book_loans_CardNo) as Number_Of_Books_Checked_Out
+from tbl_borrower bb
+left join tbl_book_loans l on bb.borrower_cardNo = l.book_loans_CardNo
+group by bb.borrower_BorrowerName,bb.borrower_BorrowerAddress,
+l.book_loans_CardNo)
+select borrower_BorrowerName as Borrower_Name,borrower_BorrowerAddress as Borrower_Address,
+Number_of_books_Checked_Out from cte where Number_of_books_Checked_out > 5;
+
+-- 7th Question For each book authored by "Stephen King", retrieve the title and the number of copies owned by the library branch whose name is "Central".
+select b.book_authors_AuthorName,bb.book_title,l.library_branch_BranchName,sum(c.book_copies_no_of_copies) as Number_of_Copies
+from tbl_book_authors b left join tbl_book bb on b.book_authors_BookID = bb.book_BookID
+left join tbl_book_copies c on bb.book_BookID = c.book_copies_BookID
+left join tbl_library_branch l on c.book_copies_BranchID = l.library_branch_BranchID
+group by b.book_authors_AuthorName,bb.book_title,l.library_branch_BranchName
+having b.book_authors_AuthorName = "Stephen King" and library_branch_BranchName ="Central";
